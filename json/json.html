@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Formatador JSON</title>
+    <title>Formatador JSON & XML</title>
     <style>
         * {
             margin: 0;
@@ -189,6 +189,7 @@
             display: flex;
             align-items: center;
             gap: 10px;
+            flex-wrap: wrap;
             flex-shrink: 0;
         }
 
@@ -209,6 +210,22 @@
         .indent-options input[type="number"]:focus {
             outline: none;
             border-color: #667eea;
+        }
+
+        .format-type {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .format-type input[type="radio"] {
+            cursor: pointer;
+        }
+
+        .format-type label {
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 0.95em;
         }
 
         .history-section {
@@ -300,41 +317,50 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>🔧 Formatador JSON</h1>
-            <p>Cole seu JSON e deixe-o perfeitamente indentado!</p>
+            <h1>🔧 Formatador JSON & XML</h1>
+            <p>Cole seu JSON ou XML e deixe-o perfeitamente indentado!</p>
         </div>
 
         <div class="content">
             <div class="message" id="message"></div>
 
             <div class="indent-options">
-                <label for="indentSize">Espaços de indentação:</label>
-                <input type="number" id="indentSize" min="1" max="8" value="2">
+                <div class="format-type">
+                    <span style="font-weight: 600;">Tipo:</span>
+                    <input type="radio" id="typeJSON" name="formatType" value="json" checked>
+                    <label for="typeJSON">JSON</label>
+                    <input type="radio" id="typeXML" name="formatType" value="xml">
+                    <label for="typeXML">XML</label>
+                </div>
+                <div style="margin-left: 20px;">
+                    <label for="indentSize">Espaços de indentação:</label>
+                    <input type="number" id="indentSize" min="1" max="8" value="2">
+                </div>
             </div>
 
             <div class="buttons">
-                <button class="btn-format" onclick="formatJSON()">✨ Formatar JSON</button>
-                <button class="btn-clear" onclick="clearAll()">🗑️ Limpar Tudo</button>
-                <button class="btn-copy" onclick="copyOutput()">📋 Copiar Resultado</button>
-                <button class="btn-clear-history" onclick="clearHistory()">🗑️ Limpar Histórico</button>
+                <button class="btn-format" id="btnFormat">✨ Formatar</button>
+                <button class="btn-clear" id="btnClear">🗑️ Limpar Tudo</button>
+                <button class="btn-copy" id="btnCopy">📋 Copiar Resultado</button>
+                <button class="btn-clear-history" id="btnClearHistory">🗑️ Limpar Histórico</button>
             </div>
 
             <div class="json-container">
                 <div class="input-section">
-                    <label for="jsonInput">JSON de Entrada:</label>
-                    <textarea id="jsonInput" placeholder='Cole seu JSON aqui... Exemplo: {"nome":"João","idade":30,"cidade":"São Paulo"}'></textarea>
+                    <label for="jsonInput">Entrada (JSON ou XML):</label>
+                    <textarea id="jsonInput" placeholder="Cole seu JSON ou XML aqui..."></textarea>
                 </div>
 
                 <div class="output-section">
-                    <label for="jsonOutput">JSON Formatado:</label>
+                    <label for="jsonOutput">Saída Formatada:</label>
                     <textarea id="jsonOutput" readonly placeholder="O resultado aparecerá aqui..."></textarea>
                 </div>
             </div>
 
             <div class="history-section">
-                <h3>📜 Histórico (últimos 15 JSONs)</h3>
+                <h3>📜 Histórico (últimos 15 formatações)</h3>
                 <div class="history-list" id="historyList">
-                    <div class="history-empty">Nenhum histórico ainda. Formate um JSON para começar!</div>
+                    <div class="history-empty">Nenhum histórico ainda. Formate um JSON ou XML para começar!</div>
                 </div>
             </div>
         </div>
@@ -342,6 +368,91 @@
 
     <script>
         let jsonHistory = [];
+
+        function formatXML(xml, indentSize) {
+            const PADDING = ' '.repeat(indentSize);
+            let formatted = '';
+            let indent = 0;
+
+            xml.split(/>\s*</).forEach(node => {
+                if (node.match(/^\/\w/)) indent--;
+                formatted += PADDING.repeat(indent) + '<' + node + '>\n';
+                if (node.match(/^<?\w[^>]*[^\/]$/) && !node.startsWith("?")) indent++;
+            });
+
+            return formatted.substring(1, formatted.length - 2);
+        }
+
+        function showMessage(text, type) {
+            const messageEl = document.getElementById('message');
+            messageEl.textContent = text;
+            messageEl.className = `message ${type}`;
+            messageEl.style.display = 'block';
+            
+            setTimeout(() => {
+                messageEl.style.display = 'none';
+            }, 3000);
+        }
+
+        function formatContent() {
+            const input = document.getElementById('jsonInput').value.trim();
+            const output = document.getElementById('jsonOutput');
+            const indentSize = parseInt(document.getElementById('indentSize').value);
+            const formatType = document.querySelector('input[name="formatType"]:checked').value;
+
+            if (!input) {
+                showMessage('Por favor, insira um conteúdo para formatar!', 'error');
+                return;
+            }
+
+            try {
+                let formatted;
+                
+                if (formatType === 'json') {
+                    const parsed = JSON.parse(input);
+                    formatted = JSON.stringify(parsed, null, indentSize);
+                    showMessage('JSON formatado com sucesso! ✓', 'success');
+                } else {
+                    const parser = new DOMParser();
+                    const xmlDoc = parser.parseFromString(input, 'text/xml');
+                    
+                    const parserError = xmlDoc.querySelector('parsererror');
+                    if (parserError) {
+                        throw new Error('XML inválido');
+                    }
+                    
+                    formatted = formatXML(input, indentSize);
+                    showMessage('XML formatado com sucesso! ✓', 'success');
+                }
+                
+                output.value = formatted;
+                addToHistory(input, formatType);
+                
+            } catch (e) {
+                const typeLabel = formatType === 'json' ? 'JSON' : 'XML';
+                showMessage(`Erro: ${typeLabel} inválido! Verifique a sintaxe.`, 'error');
+                output.value = '';
+            }
+        }
+
+        function clearAll() {
+            document.getElementById('jsonInput').value = '';
+            document.getElementById('jsonOutput').value = '';
+            showMessage('Campos limpos!', 'success');
+        }
+
+        function copyOutput() {
+            const output = document.getElementById('jsonOutput');
+            
+            if (!output.value) {
+                showMessage('Não há conteúdo para copiar!', 'error');
+                return;
+            }
+
+            output.select();
+            document.execCommand('copy');
+            showMessage('Conteúdo copiado para a área de transferência! ✓', 'success');
+        }
 
         function loadHistory() {
             const saved = localStorage.getItem('jsonHistory');
@@ -359,14 +470,16 @@
             localStorage.setItem('jsonHistory', JSON.stringify(jsonHistory));
         }
 
-        function addToHistory(jsonString) {
-            const trimmed = jsonString.trim();
+        function addToHistory(content, type) {
+            const item = { content: content.trim(), type: type };
+            const itemStr = JSON.stringify(item);
             
-            if (jsonHistory.includes(trimmed)) {
-                jsonHistory = jsonHistory.filter(item => item !== trimmed);
+            const existingIndex = jsonHistory.findIndex(h => JSON.stringify(h) === itemStr);
+            if (existingIndex !== -1) {
+                jsonHistory.splice(existingIndex, 1);
             }
             
-            jsonHistory.unshift(trimmed);
+            jsonHistory.unshift(item);
             
             if (jsonHistory.length > 15) {
                 jsonHistory = jsonHistory.slice(0, 15);
@@ -380,26 +493,37 @@
             const historyList = document.getElementById('historyList');
             
             if (jsonHistory.length === 0) {
-                historyList.innerHTML = '<div class="history-empty">Nenhum histórico ainda. Formate um JSON para começar!</div>';
+                historyList.innerHTML = '<div class="history-empty">Nenhum histórico ainda. Formate um JSON ou XML para começar!</div>';
                 return;
             }
             
             historyList.innerHTML = jsonHistory.map((item, index) => {
-                const preview = item.length > 80 ? item.substring(0, 80) + '...' : item;
+                const preview = item.content.length > 70 ? item.content.substring(0, 70) + '...' : item.content;
+                const typeLabel = item.type === 'xml' ? '📄 XML' : '📋 JSON';
+                const escapedContent = item.content.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
                 return `
                     <div class="history-item">
-                        <div class="history-item-content" onclick="loadFromHistory(${index})" title="${item.replace(/"/g, '&quot;')}">${preview}</div>
-                        <button class="history-item-delete" onclick="deleteFromHistory(${index})">✕</button>
+                        <div class="history-item-content" onclick="window.loadFromHistory(${index})" title="${escapedContent}">
+                            <strong>${typeLabel}</strong>: ${preview}
+                        </div>
+                        <button class="history-item-delete" onclick="window.deleteFromHistory(${index})">✕</button>
                     </div>
                 `;
             }).join('');
         }
 
         function loadFromHistory(index) {
-            const jsonString = jsonHistory[index];
-            document.getElementById('jsonInput').value = jsonString;
-            formatJSON();
-            showMessage('JSON carregado do histórico!', 'success');
+            const item = jsonHistory[index];
+            document.getElementById('jsonInput').value = item.content;
+            
+            if (item.type === 'xml') {
+                document.getElementById('typeXML').checked = true;
+            } else {
+                document.getElementById('typeJSON').checked = true;
+            }
+            
+            formatContent();
+            showMessage('Conteúdo carregado do histórico!', 'success');
         }
 
         function deleteFromHistory(index) {
@@ -423,61 +547,23 @@
             }
         }
 
-        function showMessage(text, type) {
-            const messageEl = document.getElementById('message');
-            messageEl.textContent = text;
-            messageEl.className = `message ${type}`;
-            messageEl.style.display = 'block';
-            
-            setTimeout(() => {
-                messageEl.style.display = 'none';
-            }, 3000);
-        }
+        // Expor funções globalmente
+        window.formatContent = formatContent;
+        window.clearAll = clearAll;
+        window.copyOutput = copyOutput;
+        window.clearHistory = clearHistory;
+        window.loadFromHistory = loadFromHistory;
+        window.deleteFromHistory = deleteFromHistory;
 
-        function formatJSON() {
-            const input = document.getElementById('jsonInput').value.trim();
-            const output = document.getElementById('jsonOutput');
-            const indentSize = parseInt(document.getElementById('indentSize').value);
-
-            if (!input) {
-                showMessage('Por favor, insira um JSON para formatar!', 'error');
-                return;
-            }
-
-            try {
-                const parsed = JSON.parse(input);
-                const formatted = JSON.stringify(parsed, null, indentSize);
-                output.value = formatted;
-                addToHistory(input);
-                showMessage('JSON formatado com sucesso! ✓', 'success');
-            } catch (e) {
-                showMessage('Erro: JSON inválido! Verifique a sintaxe.', 'error');
-                output.value = '';
-            }
-        }
-
-        function clearAll() {
-            document.getElementById('jsonInput').value = '';
-            document.getElementById('jsonOutput').value = '';
-            showMessage('Campos limpos!', 'success');
-        }
-
-        function copyOutput() {
-            const output = document.getElementById('jsonOutput');
-            
-            if (!output.value) {
-                showMessage('Não há conteúdo para copiar!', 'error');
-                return;
-            }
-
-            output.select();
-            document.execCommand('copy');
-            showMessage('JSON copiado para a área de transferência! ✓', 'success');
-        }
+        // Event Listeners
+        document.getElementById('btnFormat').addEventListener('click', formatContent);
+        document.getElementById('btnClear').addEventListener('click', clearAll);
+        document.getElementById('btnCopy').addEventListener('click', copyOutput);
+        document.getElementById('btnClearHistory').addEventListener('click', clearHistory);
 
         document.getElementById('jsonInput').addEventListener('keydown', function(e) {
             if (e.ctrlKey && e.key === 'Enter') {
-                formatJSON();
+                formatContent();
             }
         });
 
